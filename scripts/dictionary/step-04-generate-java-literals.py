@@ -33,38 +33,34 @@ cntr = skip_flip_offset
 for b in data:
   value = ord(b)
   low.append(chr(value & 0x7F))
-  if is_skip:
-    if value < 0x80:
-      cntr += 1
-    else:
-      is_skip = False
-      hi.append(unichr(cntr))
-      cntr = skip_flip_offset + 1
+  if is_skip and value < 0x80 or not is_skip and value >= 0x80:
+    cntr += 1
+  elif is_skip:
+    is_skip = False
+    hi.append(unichr(cntr))
+    cntr = skip_flip_offset + 1
   else:
-    if value >= 0x80:
-      cntr += 1
-    else:
-      is_skip = True
-      hi.append(unichr(cntr))
-      cntr = skip_flip_offset + 1
+    is_skip = True
+    hi.append(unichr(cntr))
+    cntr = skip_flip_offset + 1
 hi.append(unichr(cntr))
 
-low0 = low[0:len(low) // 2]
-low1 = low[len(low) // 2:len(low)]
+low0 = low[:len(low) // 2]
+low1 = low[len(low) // 2:]
 
 
 def escape(chars):
   result = []
   for c in chars:
-    if "\r" == c:
+    if c == "\r":
       result.append("\\r")
-    elif "\n" == c:
+    elif c == "\n":
       result.append("\\n")
-    elif "\t" == c:
+    elif c == "\t":
       result.append("\\t")
-    elif "\"" == c:
+    elif c == "\"":
       result.append("\\\"")
-    elif "\\" == c:
+    elif c == "\\":
       result.append("\\\\")
     elif ord(c) < 32 or ord(c) >= 127:
       result.append("\\u%04X" % ord(c))

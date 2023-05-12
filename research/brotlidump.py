@@ -8,6 +8,7 @@ I found the following issues with the Brotli format:
 - The block type code is useless if NBLTYPES==2, you would only need 1 symbol
   anyway, so why don't you just switch to "the other" type?
 """
+
 import struct
 from operator import itemgetter, methodcaller
 from itertools import accumulate, repeat
@@ -19,7 +20,7 @@ DICTIONARY_PATH = 'dictionary.bin'
 class InvalidStream(Exception): pass
 #lookup table
 L, I, D = "literal", "insert&copy", "distance"
-pL, pI, pD = 'P'+L, 'P'+I, 'P'+D
+pL, pI, pD = f'P{L}', f'P{I}', f'P{D}'
 
 def outputCharFormatter(c):
     """Show character in readable format
@@ -116,7 +117,7 @@ class Symbol:
         self.index = value
 
     def __repr__(self):
-        return 'Symbol({}, {})'.format(self.code.name, self.index)
+        return f'Symbol({self.code.name}, {self.index})'
 
     def __len__(self):
         """Number of bits in the prefix notation of this symbol
@@ -232,8 +233,7 @@ class PrefixDecoder:
 
     def __getitem__(self, index):
         if index not in self.lengthTable:
-            raise ValueError('No symbol {}[{}]'.format(
-                self.__class__.__name__, index))
+            raise ValueError(f'No symbol {self.__class__.__name__}[{index}]')
         return Symbol(self, index)
 
     def bitPattern(self, index):
@@ -365,7 +365,7 @@ class Code(RangeDecoder, PrefixDecoder):
             super().__init__(**args)
 
     def __repr__(self):
-        return self.__class__.__name__+' '+self.name
+        return f'{self.__class__.__name__} {self.name}'
 
     #the routines that get switched between RangeDecoder and PrefixDecoder
     def __len__(self): return self.mode.__len__(self)
@@ -402,10 +402,10 @@ class Code(RangeDecoder, PrefixDecoder):
         """
         value = self.value(index)
         return '{0}{1}: {2}'.format(
-            self.description and self.description+': ',
+            self.description and f'{self.description}: ',
             self.bitPattern(index),
             value,
-            )
+        )
 
     def extraBits(self, index):
         return 0
@@ -430,7 +430,8 @@ class Code(RangeDecoder, PrefixDecoder):
         rows = -(-len(symbolStrings)//columns)
         def justify(bs):
             b,s = bs
-            return b.rjust(leftColWidth)+':'+s.ljust(rightColWidth)
+            return f'{b.rjust(leftColWidth)}:{s.ljust(rightColWidth)}'
+
         for i in range(rows):
             print(' '.join(map(justify, symbolStrings[i::rows])).rstrip())
 
@@ -494,13 +495,14 @@ class WithExtra(Code):
             lo, hi = self.span(index)
             value = lo+extra
         return formatString.format(
-            self.description and self.description+': ',
-            'x'*extraBits,
+            self.description and f'{self.description}: ',
+            'x' * extraBits,
             self.bitPattern(index),
-            lo, hi,
+            lo,
+            hi,
             extra,
             value,
-            )
+        )
 
     def callback(self, symbol, extra):
         return self.explanation(symbol.index, extra)
@@ -535,8 +537,7 @@ class Enumerator(WithExtra):
         """Faster than PrefixDecoder
         """
         if index>=len(self.extraTable):
-            raise ValueError("No symbol {}[{}]".format(
-                self.__class__.__name__, index))
+            raise ValueError(f"No symbol {self.__class__.__name__}[{index}]")
         return Symbol(self, index)
 
     def value(self, index, extra):
@@ -583,8 +584,7 @@ class PrefixCodeHeader(WithExtra):
 
     def explanation(self, index, extra):
         if index==1:
-            return '{} is simple with {} code word{}'.format(
-                self.codename, extra+1, 's' if extra else '')
+            return f"{self.codename} is simple with {extra + 1} code word{'s' if extra else ''}"
         lengths = [1, 2, 3, 4, 0, 5, 17, 6]
         return '{} is complex with lengths {}...'.format(
             self.codename,
@@ -625,11 +625,10 @@ class LengthOfLengthAlphabet(Code):
         super().__init__(name, decodeTable=self.decodeTable, **args)
 
     def mnemonic(self, index):
-        if index==0: return 'skipped'
-        return 'coded with {} bits'.format(index)
+        return 'skipped' if index==0 else f'coded with {index} bits'
 
     def explanation(self, index, extra=None):
-        return self.description+': '+self.mnemonic(index)
+        return f'{self.description}: {self.mnemonic(index)}'
 
 class LengthAlphabet(WithExtra):
     """Length of symbols
@@ -642,10 +641,14 @@ class LengthAlphabet(WithExtra):
         return {16:2, 17:3}.get(index, 0)
 
     def mnemonic(self, index):
-        if index==0: return 'unused'
-        elif index==16: return 'rep xx'
-        elif index==17: return 'zero xxx'
-        else: return 'len {}'.format(index)
+        if index == 0:
+            if index==0: return 'unused'
+        elif index == 16:
+            return 'rep xx'
+        elif index == 17:
+            return 'zero xxx'
+        else:
+            return f'len {index}'
 
     def explanation(self, index, extra):
         return self.description.format(self[index], extra)
@@ -675,12 +678,10 @@ class WindowSizeAlphabet(Code):
 
     def value(self, index):
         #missing value gives index None
-        if index is None: return None
-        return (1<<index)-16
+        return None if index is None else (1<<index)-16
 
     def explanation(self, index):
-        return 'windowsize=(1<<{})-16={}'.format(
-            index, (1<<index)-16)
+        return f'windowsize=(1<<{index})-16={(1 << index) - 16}'
 
 #Metablock
 class MetablockLengthAlphabet(WithExtra):
@@ -750,10 +751,7 @@ class FillerAlphabet(Code):
         super().__init__('SKIP', bitLength=(-streamPos)&7)
 
     def explanation(self, index):
-        return '{} bit{} ignored'.format(
-            self.length(index),
-            '' if self.length(index)==1 else 's',
-            )
+        return f"{self.length(index)} bit{'' if self.length(index) == 1 else 's'} ignored"
 
 class SkipLengthAlphabet(WithExtra):
     """Used for the skip length in an empty metablock
@@ -837,10 +835,7 @@ class TypeCountAlphabet(Enumerator):
         value = self.value(index, extra)
         description = self.description
         if value==1: description = description[:-1]
-        return '{}: {} {}'.format(
-            self.mnemonic(index),
-            value,
-            description)
+        return f'{self.mnemonic(index)}: {value} {description}'
 
 class BlockTypeAlphabet(Code):
     """The block types; this code works for all three kinds.
@@ -853,17 +848,23 @@ class BlockTypeAlphabet(Code):
         self.NBLTYPES = NBLTYPES
 
     def mnemonic(self, index):
-        if index==0: return 'prev'
-        elif index==1: return '+1'
-        else: return '#'+str(index-2)
+        if index == 0:
+            if index==0: return 'prev'
+        elif index == 1:
+            return '+1'
+        else:
+            return f'#{str(index - 2)}'
 
     def value(self, index):
         return index-2
 
     def explanation(self, index):
-        if index==0: return '0: previous'
-        elif index==1: return '1: increment'
-        else: return 'Set block type to: '+str(index-2)
+        if index == 0:
+            if index==0: return '0: previous'
+        elif index == 1:
+            return '1: increment'
+        else:
+            return f'Set block type to: {str(index - 2)}'
 
 class BlockCountAlphabet(Enumerator):
     """Block counts
@@ -880,11 +881,11 @@ class BlockCountAlphabet(Enumerator):
     def mnemonic(self, index):
         extraBits = self.extraBits(index)
         return '{}: BC{}-{}'.format(
-            'x'*extraBits if index<5 else '[{}*x]'.format(extraBits),
-            *self.span(index))
+            'x' * extraBits if index < 5 else f'[{extraBits}*x]', *self.span(index)
+        )
 
     def explanation(self, index, extra):
-        return 'Block count: '+super().explanation(index, extra)
+        return f'Block count: {super().explanation(index, extra)}'
 
 class DistanceParamAlphabet(WithExtra):
     """The distance parameters NPOSTFIX and NDIRECT.
@@ -908,7 +909,7 @@ class DistanceParamAlphabet(WithExtra):
             index, extra, index, extra<<index)
 
     def mnemonic(self, index):
-        return 'PF'+str(index)
+        return f'PF{str(index)}'
 
 class LiteralContextMode(Code):
     """For the literal context modes.
@@ -919,17 +920,14 @@ class LiteralContextMode(Code):
     """
 
     def __init__(self, *, number=9):
-        super().__init__('LC'+str(number), bitLength=2)
+        super().__init__(f'LC{str(number)}', bitLength=2)
         self.number = number
 
     def mnemonic(self, index):
         return ['LSB6', 'MSB6', 'UTF8', 'Signed'][index]
 
     def explanation(self, index):
-        return 'Context mode for type {}: {}({})'.format(
-            self.number,
-            index,
-            self.mnemonic(index))
+        return f'Context mode for type {self.number}: {index}({self.mnemonic(index)})'
 
 class RLEmaxAlphabet(Enumerator):
     """Used for describing the run length encoding used for describing context maps.
@@ -944,9 +942,10 @@ class RLEmaxAlphabet(Enumerator):
         return ['1', 'more'][index]
 
     def explanation(self, index, extra):
-        description = self.description and self.description+': '
-        if index==0: return description+'No RLE coding'
-        return '{}xxxx 1: RLEMAX={}'.format(description, extra+1)
+        description = self.description and f'{self.description}: '
+        if index==0:
+            return f'{description}No RLE coding'
+        return f'{description}xxxx 1: RLEMAX={extra + 1}'
 
 class TreeAlphabet(WithExtra):
     """The alphabet to enumerate entries (called trees) in the context map.
@@ -968,14 +967,13 @@ class TreeAlphabet(WithExtra):
         self.NTREES = NTREES
 
     def extraBits(self, index):
-        if 0<index<=self.RLEMAX: return index
-        return 0
+        return index if 0<index<=self.RLEMAX else 0
 
     def mnemonic(self, index):
         if index==0: return 'map #0'
         if index<=self.RLEMAX:
-            return '{}+{} zeroes'.format('x'*index, 1<<index)
-        return 'map #{}'.format(index-self.RLEMAX)
+            return f"{'x' * index}+{1 << index} zeroes"
+        return f'map #{index - self.RLEMAX}'
 
     def value(self, index, extra):
         """Give count and value."""
@@ -985,16 +983,15 @@ class TreeAlphabet(WithExtra):
         return 1, index-self.RLEMAX
 
     def explanation(self, index, extra):
-        description = self.description and self.description+': '
-        if index==0: return description+'map #0'
+        description = self.description and f'{self.description}: '
+        if index==0:
+            return f'{description}map #0'
         if index<=self.RLEMAX:
             return '{}+{:0{}b}={} zeroes'.format(
                 (1<<index),
                 extra, self.extraBits(index),
                 (1<<index)+extra)
-        return '{}map #{}-{}={}'.format(
-            description,
-            index, self.RLEMAX, index-self.RLEMAX)
+        return f'{description}map #{index}-{self.RLEMAX}={index - self.RLEMAX}'
 
 #Prefix alphabets for the data stream----------------------------------
 class LiteralAlphabet(Code):
@@ -1002,7 +999,7 @@ class LiteralAlphabet(Code):
     """
     minLength = maxLength = 8
     def __init__(self, number):
-        super().__init__('L'+str(number), alphabetSize=1<<8)
+        super().__init__(f'L{str(number)}', alphabetSize=1<<8)
 
     def mnemonic(self, index):
         return outputCharFormatter(index)
@@ -1046,7 +1043,7 @@ class InsertAndCopyAlphabet(WithExtra):
     copyLengthAlphabet = CopyLengthAlphabet(None)
 
     def __init__(self, number=''):
-        super().__init__('IC'+str(number), bitLength=10)
+        super().__init__(f'IC{str(number)}', bitLength=10)
 
     def __len__(self):
         return 704
@@ -1081,14 +1078,7 @@ class InsertAndCopyAlphabet(WithExtra):
         iExtra = i.extraBits()
         cLower, _ = c.code.span(c.index)
         cExtra = c.extraBits()
-        return 'I{}{}{}C{}{}{}{}'.format(
-            iLower,
-            '+' if iExtra else '',
-            'x'*iExtra if iExtra<6 else '[{}*x]'.format(iExtra),
-            cLower,
-            '+' if cExtra else '',
-            'x'*cExtra if cExtra<6 else '[{}*x]'.format(cExtra),
-            '&D=0' if d0 else '')
+        return f"I{iLower}{'+' if iExtra else ''}{'x' * iExtra if iExtra < 6 else f'[{iExtra}*x]'}C{cLower}{'+' if cExtra else ''}{'x' * cExtra if cExtra < 6 else f'[{cExtra}*x]'}{'&D=0' if d0 else ''}"
 
     def value(self, index, extra):
         i,c,d0 = self.splitSymbol(index)
@@ -1100,8 +1090,10 @@ class InsertAndCopyAlphabet(WithExtra):
 
     def explanation(self, index, extra):
         insert, copy, d0 = self.value(index, extra)
-        if d0: return 'Literal: {}, copy: {}, same distance'.format(insert, copy)
-        else: return 'Literal: {}, copy: {}'.format(insert, copy)
+        if d0:
+            return f'Literal: {insert}, copy: {copy}, same distance'
+        else:else
+            return f'Literal: {insert}, copy: {copy}'
 
 class DistanceAlphabet(WithExtra):
     """Represent the distance encoding.
@@ -1130,8 +1122,10 @@ class DistanceAlphabet(WithExtra):
         #set length
         #Actually, not all symbols are used,
         #only NDIRECT+16+(44-2*POSTFIX<<NPOSTFIX)
-        super().__init__('D'+str(number),
-            alphabetSize=self.NDIRECT+16+(48<<self.NPOSTFIX))
+        super().__init__(
+            f'D{str(number)}',
+            alphabetSize=self.NDIRECT + 16 + (48 << self.NPOSTFIX),
+        )
 
     def extraBits(self, index):
         """Indicate how many extra bits are needed to interpret symbol
@@ -1181,13 +1175,16 @@ class DistanceAlphabet(WithExtra):
         index -= self.NDIRECT+16
         hcode = index >> self.NPOSTFIX
         lcode = index & (1<<self.NPOSTFIX)-1
-        if self.NPOSTFIX: formatString = '1{0}{1}{2:0{3}b}{4:+d}'
-        else: formatString = '1{0}{1}{4:+d}'
+        formatString = '1{0}{1}{2:0{3}b}{4:+d}' if self.NPOSTFIX else '1{0}{1}{4:+d}'
         return formatString.format(
-            hcode&1,
-            'x'*(2+hcode>>1) if hcode<13 or verbose else '[{}*x]'.format(2+hcode>>1),
-            lcode, self.NPOSTFIX,
-            self.NDIRECT+1-(4<<self.NPOSTFIX))
+            hcode & 1,
+            'x' * (2 + hcode >> 1)
+            if hcode < 13 or verbose
+            else f'[{2 + hcode >> 1}*x]',
+            lcode,
+            self.NPOSTFIX,
+            self.NDIRECT + 1 - (4 << self.NPOSTFIX),
+        )
 
     def explanation(self, index, extra):
         """
@@ -1393,9 +1390,7 @@ class Layout:
         >>> Layout(olleke).formatBitData(4, 1, 0)
         '1'
         """
-        result = []
-        #make empty prefix code explicit
-        if width1==0: result = ['()', ',']
+        result = ['()', ','] if width1==0 else []
         for width in width1, width2:
             #skip empty width2
             if width==0: continue
@@ -1464,25 +1459,24 @@ class Layout:
         lengths = [1,2,3,4,0,5,17,6,16,7,8,9,10,11,12,13,14,15][hskip:]
         codeLengths = {}
         total = 0
-        lol = LengthOfLengthAlphabet('##'+alphabet.name)
+        lol = LengthOfLengthAlphabet(f'##{alphabet.name}')
         #lengthCode will be used for coding the lengths of the new code
         #we use it for display until now; definition comes below
-        lengthCode = LengthAlphabet('#'+alphabet.name)
+        lengthCode = LengthAlphabet(f'#{alphabet.name}')
         lengthIter = iter(lengths)
         lengthsLeft = len(lengths)
         while total<32 and lengthsLeft>0:
             lengthsLeft -= 1
             newSymbol = next(lengthIter)
             lol.description = str(lengthCode[newSymbol])
-            length = self.verboseRead(lol)
-            if length:
+            if length := self.verboseRead(lol):
                 codeLengths[newSymbol] = length
                 total += 32>>length
         if total>32: raise ValueError("Stream format")
         if len(codeLengths)==1: codeLengths[list(codeLengths.keys())[0]] = 0
         #Now set the encoding of the lengthCode
         lengthCode.setLength(codeLengths)
-        print("***** Lengths for {} will be coded as:".format(alphabet.name))
+        print(f"***** Lengths for {alphabet.name} will be coded as:")
         lengthCode.showCode()
         #Now determine the symbol lengths with the lengthCode
         symbolLengths = {}
@@ -1497,13 +1491,13 @@ class Layout:
             #lengthCode calls format(symbol, extra) with this string
             if length==0:
                 symbol = next(alphabetIter)
-                lengthCode.description = 'symbol {} unused'.format(symbol)
+                lengthCode.description = f'symbol {symbol} unused'
                 self.verboseRead(lengthCode)
                 #unused symbol
                 continue
             if length==16:
                 lengthCode.description = \
-                    '{1}+3 symbols of length '+str(lastLength)
+                        '{1}+3 symbols of length '+str(lastLength)
                 extra = self.verboseRead(lengthCode)
                 #scan series of 16s (repeat counts)
                 #start with repeat count 2
@@ -1511,7 +1505,7 @@ class Layout:
                 startSymbol = next(alphabetIter)
                 endSymbol = next(alphabetIter)
                 symbolLengths[startSymbol.index] = \
-                    symbolLengths[endSymbol.index] = lastLength
+                        symbolLengths[endSymbol.index] = lastLength
                 #count the two just defined symbols
                 total += 2*32768>>lastLength
                 #note: loop may end because we're there
@@ -1521,7 +1515,7 @@ class Layout:
                     oldRepeat = repeat
                     repeat = (repeat-2<<2)+extra+3
                     #read as many symbols as repeat increased
-                    for i in range(oldRepeat, repeat):
+                    for _ in range(oldRepeat, repeat):
                         endSymbol = next(alphabetIter)
                         symbolLengths[endSymbol.index] = lastLength
                     #compute new total; it may be end of loop
@@ -1550,7 +1544,7 @@ class Layout:
                     oldRepeat = repeat
                     repeat = (repeat-2<<3)+extra+3
                     #read as many symbols as repeat increases
-                    for i in range(repeat-oldRepeat):
+                    for _ in range(repeat-oldRepeat):
                         endSymbol = next(alphabetIter)
                     #see if there is more to do
                     length = lengthCode.decodePeek(
@@ -1565,7 +1559,7 @@ class Layout:
                 char = str(symbol)
                 if char in '{}': char *= 2
                 lengthCode.description = \
-                    'Length for {} is {{0.index}} bits'.format(char)
+                        'Length for {} is {{0.index}} bits'.format(char)
                 #output is not needed (will be 0)
                 self.verboseRead(lengthCode)
                 symbolLengths[symbol.index] = length
@@ -1573,7 +1567,7 @@ class Layout:
                 lastLength = length
         assert total==32768
         alphabet.setLength(symbolLengths)
-        print('End of table. Prefix code '+alphabet.name+':')
+        print(f'End of table. Prefix code {alphabet.name}:')
         alphabet.showCode()
 
     #stream
@@ -1590,9 +1584,10 @@ class Layout:
         while not self.ISLAST:
             self.ISLAST = self.verboseRead(
                 BoolCode('LAST', description="Last block"))
-            if self.ISLAST:
-                if self.verboseRead(
-                    BoolCode('EMPTY', description="Empty block")): break
+            if self.ISLAST and self.verboseRead(
+                BoolCode('EMPTY', description="Empty block")
+            ):
+                break
             if self.metablockLength(): continue
             if not self.ISLAST and self.uncompressed(): continue
             print('Block type descriptors'.center(60, '-'))
@@ -1645,7 +1640,7 @@ class Layout:
             #start over on the right side
             self.bitPtr = self.width
         fillWidth = self.bitPtr-(len(hexdata)+len(bitdata))
-        if fillWidth<0: fillWidth = 0
+        fillWidth = max(fillWidth, 0)
         print('{:<5s} {:<{}s} {:7s} {}'.format(
             addressField,
             hexdata+' '*fillWidth+bitdata, self.width,
@@ -1687,16 +1682,19 @@ class Layout:
 
     def blockType(self, kind):
         """Read block type switch descriptor for given kind of blockType."""
-        NBLTYPES = self.verboseRead(TypeCountAlphabet(
-            'BT#'+kind[0].upper(),
-            description='{} block types'.format(kind),
-            ))
+        NBLTYPES = self.verboseRead(
+            TypeCountAlphabet(
+                f'BT#{kind[0].upper()}', description=f'{kind} block types'
+            )
+        )
         self.numberOfBlockTypes[kind] = NBLTYPES
         if NBLTYPES>=2:
             self.blockTypeCodes[kind] = self.readPrefixCode(
-                BlockTypeAlphabet('BT'+kind[0].upper(), NBLTYPES))
+                BlockTypeAlphabet(f'BT{kind[0].upper()}', NBLTYPES)
+            )
             self.blockCountCodes[kind] = self.readPrefixCode(
-                BlockCountAlphabet('BC'+kind[0].upper()))
+                BlockCountAlphabet(f'BC{kind[0].upper()}')
+            )
             blockCount = self.verboseRead(self.blockCountCodes[kind])
         else:
             blockCount = 1<<24
@@ -1716,27 +1714,32 @@ class Layout:
         """
         print('Context modes'.center(60, '-'))
         self.literalContextModes = []
-        for i in range(self.numberOfBlockTypes[L]):
-            self.literalContextModes.append(
-                self.verboseRead(LiteralContextMode(number=i)))
+        self.literalContextModes.extend(
+            self.verboseRead(LiteralContextMode(number=i))
+            for i in range(self.numberOfBlockTypes[L])
+        )
 
     def contextMap(self, kind):
         """Read context maps
         Returns the number of differnt values on the context map
         (In other words, the number of prefix trees)
         """
-        NTREES = self.verboseRead(TypeCountAlphabet(
-            kind[0].upper()+'T#',
-            description='{} prefix trees'.format(kind)))
+        NTREES = self.verboseRead(
+            TypeCountAlphabet(
+                f'{kind[0].upper()}T#', description=f'{kind} prefix trees'
+            )
+        )
         mapSize = {L:64, D:4}[kind]
         if NTREES<2:
             self.cmaps[kind] = [0]*mapSize
         else:
             #read CMAPkind
-            RLEMAX = self.verboseRead(RLEmaxAlphabet(
-                'RLE#'+kind[0].upper(),
-                description=kind+' context map'))
-            alphabet = TreeAlphabet('CM'+kind[0].upper(), NTREES=NTREES, RLEMAX=RLEMAX)
+            RLEMAX = self.verboseRead(
+                RLEmaxAlphabet(
+                    f'RLE#{kind[0].upper()}', description=f'{kind} context map'
+                )
+            )
+            alphabet = TreeAlphabet(f'CM{kind[0].upper()}', NTREES=NTREES, RLEMAX=RLEMAX)
             cmapCode = self.readPrefixCode(alphabet)
             tableSize = mapSize*self.numberOfBlockTypes[kind]
             cmap = []
@@ -1746,8 +1749,9 @@ class Layout:
                 count, value = self.verboseRead(cmapCode)
                 cmap.extend([value]*count)
             assert len(cmap)==tableSize
-            IMTF = self.verboseRead(BoolCode('IMTF', description='Apply inverse MTF'))
-            if IMTF:
+            if IMTF := self.verboseRead(
+                BoolCode('IMTF', description='Apply inverse MTF')
+            ):
                 self.IMTF(cmap)
             if kind==L:
                 print('Context maps for literal data:')
@@ -1897,10 +1901,11 @@ class Layout:
         counts, types = self.currentBlockCounts, self.currentBlockTypes
         if counts[kind]==0:
             newType = self.verboseRead(self.blockTypeCodes[kind])
-            if newType==-2: newType = types['P'+kind]
+            if newType==-2:
+                newType = types[f'P{kind}']
             elif newType==-1:
                 newType = (types[kind]+1)%self.numberOfBlockTypes[kind]
-            types['P'+kind] = types[kind]
+            types[f'P{kind}'] = types[kind]
             types[kind] = newType
             counts[kind] = self.verboseRead(self.blockCountCodes[kind])
         counts[kind] -=1

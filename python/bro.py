@@ -38,12 +38,10 @@ def get_binary_stdio(stream):
                 msvcrt.setmode(stdio.fileno(), os.O_BINARY)
         return stdio
     else:
-        # get 'buffer' attribute to read/write binary data on python3.x
         if hasattr(stdio, 'buffer'):
             return stdio.buffer
-        else:
-            orig_stdio = getattr(sys, '__%s__' % stream)
-            return orig_stdio.buffer
+        orig_stdio = getattr(sys, f'__{stream}__')
+        return orig_stdio.buffer
 
 
 def main(args=None):
@@ -121,7 +119,7 @@ def main(args=None):
 
     if options.infile:
         if not os.path.isfile(options.infile):
-            parser.error('file "%s" not found' % options.infile)
+            parser.error(f'file "{options.infile}" not found')
         with open(options.infile, 'rb') as infile:
             data = infile.read()
     else:
@@ -149,8 +147,7 @@ def main(args=None):
                 lgwin=options.lgwin,
                 lgblock=options.lgblock)
     except brotli.error as e:
-        parser.exit(1,
-                    'bro: error: %s: %s' % (e, options.infile or 'sys.stdin'))
+        parser.exit(1, f"bro: error: {e}: {options.infile or 'sys.stdin'}")
 
     outfile.write(data)
     outfile.close()

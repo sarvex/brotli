@@ -13,9 +13,9 @@ with open(bin_path, "rb") as raw:
 
 def check_digest(name, expected, actual):
   if expected == actual:
-    print("[OK] " + name)
+    print(f"[OK] {name}")
   else:
-    print("[ERROR] " + name + " | " + expected + " != " + actual)
+    print(f"[ERROR] {name} | {expected} != {actual}")
 
 
 check_digest(

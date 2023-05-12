@@ -13,4 +13,4 @@ path = "rfc7932.txt"
 with open(path, "w") as rfc:
   rfc.write(text)
 
-print("Downloaded and saved " + str(len(text)) + " bytes to " + path)
+print(f"Downloaded and saved {len(text)} bytes to {path}")

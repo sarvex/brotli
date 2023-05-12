@@ -63,11 +63,11 @@ TEMP_DIR = tempfile.mkdtemp()
 
 
 def get_temp_compressed_name(filename):
-    return os.path.join(TEMP_DIR, os.path.basename(filename + '.bro'))
+  return os.path.join(TEMP_DIR, os.path.basename(f'{filename}.bro'))
 
 
 def get_temp_uncompressed_name(filename):
-    return os.path.join(TEMP_DIR, os.path.basename(filename + '.unbro'))
+  return os.path.join(TEMP_DIR, os.path.basename(f'{filename}.unbro'))
 
 
 def bind_method_args(method, *args, **kwargs):
@@ -77,32 +77,30 @@ def bind_method_args(method, *args, **kwargs):
 def generate_test_methods(test_case_class,
                           for_decompression=False,
                           variants=None):
-    # Add test methods for each test data file.  This makes identifying problems
-    # with specific compression scenarios easier.
-    if for_decompression:
-        paths = TESTDATA_PATHS_FOR_DECOMPRESSION
-    else:
-        paths = TESTDATA_PATHS
-    opts = []
-    if variants:
-        opts_list = []
-        for k, v in variants.items():
-            opts_list.append([r for r in itertools.product([k], v)])
-        for o in itertools.product(*opts_list):
-            opts_name = '_'.join([str(i) for i in itertools.chain(*o)])
-            opts_dict = dict(o)
-            opts.append([opts_name, opts_dict])
-    else:
-        opts.append(['', {}])
-    for method in [m for m in dir(test_case_class) if m.startswith('_test')]:
-        for testdata in paths:
-            for (opts_name, opts_dict) in opts:
-                f = os.path.splitext(os.path.basename(testdata))[0]
-                name = 'test_{method}_{options}_{file}'.format(
-                    method=method, options=opts_name, file=f)
-                func = bind_method_args(
-                    getattr(test_case_class, method), testdata, **opts_dict)
-                setattr(test_case_class, name, func)
+  # Add test methods for each test data file.  This makes identifying problems
+  # with specific compression scenarios easier.
+  if for_decompression:
+      paths = TESTDATA_PATHS_FOR_DECOMPRESSION
+  else:
+      paths = TESTDATA_PATHS
+  opts = []
+  if variants:
+    opts_list = [list(itertools.product([k], v)) for k, v in variants.items()]
+    for o in itertools.product(*opts_list):
+        opts_name = '_'.join([str(i) for i in itertools.chain(*o)])
+        opts_dict = dict(o)
+        opts.append([opts_name, opts_dict])
+  else:
+    opts.append(['', {}])
+  for method in [m for m in dir(test_case_class) if m.startswith('_test')]:
+      for testdata in paths:
+          for (opts_name, opts_dict) in opts:
+              f = os.path.splitext(os.path.basename(testdata))[0]
+              name = 'test_{method}_{options}_{file}'.format(
+                  method=method, options=opts_name, file=f)
+              func = bind_method_args(
+                  getattr(test_case_class, method), testdata, **opts_dict)
+              setattr(test_case_class, name, func)
 
 
 class TestCase(unittest.TestCase):
@@ -119,6 +117,7 @@ class TestCase(unittest.TestCase):
                 pass
 
     def assertFilesMatch(self, first, second):
-        self.assertTrue(
-            filecmp.cmp(first, second, shallow=False),
-            'File {} differs from {}'.format(first, second))
+      self.assertTrue(
+          filecmp.cmp(first, second, shallow=False),
+          f'File {first} differs from {second}',
+      )

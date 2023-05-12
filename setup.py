@@ -29,9 +29,10 @@ def get_version():
     version = 0
     with open(version_file_path, 'r') as f:
         for line in f:
-            m = re.match(r'#define\sBROTLI_VERSION\s+0x([0-9a-fA-F]+)', line)
-            if m:
-                version = int(m.group(1), 16)
+            if m := re.match(
+                r'#define\sBROTLI_VERSION\s+0x([0-9a-fA-F]+)', line
+            ):
+                version = int(m[1], 16)
     if version == 0:
         return ''
     # Semantic version is calculated as (MAJOR << 24) | (MINOR << 12) | PATCH.
@@ -43,8 +44,7 @@ def get_version():
 
 def get_test_suite():
     test_loader = unittest.TestLoader()
-    test_suite = test_loader.discover('python', pattern='*_test.py')
-    return test_suite
+    return test_loader.discover('python', pattern='*_test.py')
 
 
 class BuildExt(build_ext):
@@ -58,9 +58,8 @@ class BuildExt(build_ext):
     def build_extension(self, ext):
         if ext.sources is None or not isinstance(ext.sources, (list, tuple)):
             raise errors.DistutilsSetupError(
-                "in 'ext_modules' option (extension '%s'), "
-                "'sources' must be present and must be "
-                "a list of source filenames" % ext.name)
+                f"in 'ext_modules' option (extension '{ext.name}'), 'sources' must be present and must be a list of source filenames"
+            )
 
         ext_path = self.get_ext_fullpath(ext.name)
         depends = ext.sources + ext.depends
@@ -70,10 +69,7 @@ class BuildExt(build_ext):
         else:
             log.info("building '%s' extension", ext.name)
 
-        c_sources = []
-        for source in ext.sources:
-            if source.endswith('.c'):
-                c_sources.append(source)
+        c_sources = [source for source in ext.sources if source.endswith('.c')]
         extra_args = ext.extra_compile_args or []
 
         objects = []
